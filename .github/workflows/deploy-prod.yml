@@ -185,11 +185,8 @@ jobs:
     needs: deploy
     uses: ./.github/workflows/delete-ecr-tag.yml
     with:
-      repo: my-ecs-app             
-      region: eu-central-1        
+      repo: ${{ vars.ECR_REPO }}
+      region: ${{ vars.AWS_REGION }}
       tag: release
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
+    secrets: inherit
   
