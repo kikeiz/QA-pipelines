@@ -80,7 +80,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${{ steps.versioning.outputs.new_tag }} [skip ci]" || echo "No changes to commit"
-          git tag v${{ steps.versioning.outputs.new_tag }}
+          git tag ${{ steps.versioning.outputs.new_tag }}
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
           git push origin main --tags
 
@@ -118,11 +118,21 @@ jobs:
         id: build-image
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          IMAGE=${{ secrets.ECR_REPO }}:release
-          docker pull $IMAGE
-          docker tag $IMAGE ${{ secrets.ECR_REPO }}:$VERSION
-          docker push ${{ secrets.ECR_REPO }}:$VERSION
-          echo "image=${{ secrets.ECR_REPO }}:$VERSION" >> $GITHUB_OUTPUT
+          REPO=${{ secrets.ECR_REPO }}
+
+          # Pull the 'release' image (built in staging)
+          docker pull $REPO:release
+
+          # Tag it with the final version
+          docker tag $REPO:release $REPO:$VERSION
+
+          # Push only the version tag
+          docker push $REPO:$VERSION
+
+          # Optional: untag the 'release' tag locally
+          docker rmi $REPO:release || true
+
+          echo "image=$REPO:$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download and clean existing ECS task definition
         id: fetch-task
@@ -169,3 +179,17 @@ jobs:
 
       - name: Cleanup task definition files
         run: rm -f taskdef.json taskdef-clean.json
+
+  delete-release-tag:
+    name: Delete ECR 'release' tag
+    needs: deploy
+    uses: ./.github/workflows/delete-ecr-tag.yml
+    with:
+      repo: my-ecs-app             
+      region: eu-central-1        
+      tag: release
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  
