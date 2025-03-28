@@ -40,7 +40,6 @@ jobs:
 
       - name: Build .NET project
         run: |
-          cd dotnet
           dotnet restore
           dotnet build
           dotnet test
