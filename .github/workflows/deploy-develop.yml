@@ -43,6 +43,7 @@ jobs:
           else
             echo "ℹ️ No relevant changes. Skipping deploy."
             echo "deploy=false" >> $GITHUB_OUTPUT
+          fi
 
   build-and-deploy:
     environment: development
@@ -73,7 +74,7 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-        
+
       - name: Build & Push Dev Image
         id: build-image
         run: |
