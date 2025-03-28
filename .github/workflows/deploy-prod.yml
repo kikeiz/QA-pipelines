@@ -25,20 +25,31 @@ jobs:
         id: versioning
         run: |
           echo "🔍 Getting latest valid semantic version tag..."
-          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          
+          # Fetch all tags
+          git fetch --tags
       
+          # Find the highest valid semver tag or fallback to v0.0.0
+          latest_tag=$(git tag --list 'v*' | sort -V | tail -n 1)
           if [ -z "$latest_tag" ]; then
             latest_tag="v0.0.0"
           fi
       
           echo "Latest tag: $latest_tag"
       
+          # Remove leading 'v' and split version
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
       
           echo "🧾 Getting commits since $latest_tag..."
-          commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
       
+          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
+            commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
+          else
+            commits=$(git log --pretty=format:%B)
+          fi
+      
+          # Determine version bump type
           echo "$commits" | grep -q "BREAKING CHANGE" && bump=major
           echo "$commits" | grep -q "^feat" && [[ $bump != "major" ]] && bump=minor
           echo "$commits" | grep -q "^fix" && [[ -z "$bump" ]] && bump=patch
@@ -49,6 +60,7 @@ jobs:
             exit 0
           fi
       
+          # Apply the bump
           case $bump in
             major)
               major=$((major + 1))
@@ -66,6 +78,8 @@ jobs:
       
           new_tag="v$major.$minor.$patch"
           echo "📦 New version: $new_tag"
+      
+          # Set it as an output
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
       - name: Use new version
