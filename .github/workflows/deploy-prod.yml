@@ -20,27 +20,31 @@ jobs:
         id: versioning
         run: |
           echo "🔍 Getting latest tag..."
-          latest_tag=$(git describe --tags --abbrev=0 || echo "v0.0.0")
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "Latest tag: $latest_tag"
-
+      
           # Remove leading 'v' and split
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
-
-          # Get all commits since the last tag
-          echo "🧾 Getting commits since $latest_tag..."
-          commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
-
+      
+          # Get commits since last tag or all commits if first tag
+          echo "🧾 Getting commits..."
+          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
+            commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
+          else
+            commits=$(git log --pretty=format:%B)
+          fi
+      
           echo "$commits" | grep -q "BREAKING CHANGE" && bump=major
           echo "$commits" | grep -q "^feat" && [[ $bump != "major" ]] && bump=minor
           echo "$commits" | grep -q "^fix" && [[ -z "$bump" ]] && bump=patch
-
+      
           if [[ -z "$bump" ]]; then
             echo "ℹ️ No version-worthy changes found. Skipping tag."
             echo "new_tag=" >> $GITHUB_OUTPUT
             exit 0
           fi
-
+      
           # Increment version
           case $bump in
             major)
@@ -56,10 +60,9 @@ jobs:
               patch=$((patch + 1))
               ;;
           esac
-
+      
           new_tag="v$major.$minor.$patch"
           echo "📦 New version: $new_tag"
-
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
       - name: Use new version
@@ -78,6 +81,7 @@ jobs:
 
   deploy:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+    needs: analyze-commits
     runs-on: ubuntu-latest
     environment: production
     steps:
