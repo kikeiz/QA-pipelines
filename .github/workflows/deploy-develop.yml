@@ -29,7 +29,6 @@ jobs:
     needs: check-branch
     if: needs.check-branch.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    environment: development
     steps:
       - uses: actions/checkout@v4
 
