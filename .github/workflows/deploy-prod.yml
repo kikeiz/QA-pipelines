@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   analyze-commits:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -59,12 +60,6 @@ jobs:
           new_tag="v$major.$minor.$patch"
           echo "📦 New version: $new_tag"
 
-          # Create the tag
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag "$new_tag"
-          git push origin "$new_tag"
-
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
       - name: Use new version
@@ -96,13 +91,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Run Semantic Release
-        uses: cycjimmy/semantic-release-action@v3
-        with:
-          branches: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Fetch tags created by Semantic Release
         run: git fetch --tags
 
@@ -113,7 +101,6 @@ jobs:
           echo "VERSION=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-        
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
