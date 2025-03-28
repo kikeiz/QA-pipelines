@@ -18,6 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      - name: Print received inputs
+        run: |
+          echo "📦 Input repo: ${{ inputs.repo }}"
+          echo "🌍 Input region: ${{ inputs.region }}"
+          echo "🏷️  Input tag: ${{ inputs.tag }}"
+          
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
