@@ -83,10 +83,6 @@ jobs:
           docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
           echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Debug task name
-        run: |
-          echo "Using task definition: ${{ vars.TASK_DEFINITION }}"
-
       - name: Download and clean existing ECS task definition
         id: fetch-task
         run: |
