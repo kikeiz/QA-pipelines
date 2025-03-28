@@ -24,21 +24,20 @@ jobs:
       - name: Determine next version and tag
         id: versioning
         run: |
-          echo "🔍 Getting latest tag..."
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "🔍 Getting latest valid semantic version tag..."
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+      
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+      
           echo "Latest tag: $latest_tag"
       
-          # Remove leading 'v' and split
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
       
-          # Get commits since last tag or all commits if first tag
-          echo "🧾 Getting commits..."
-          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
-            commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
-          else
-            commits=$(git log --pretty=format:%B)
-          fi
+          echo "🧾 Getting commits since $latest_tag..."
+          commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
       
           echo "$commits" | grep -q "BREAKING CHANGE" && bump=major
           echo "$commits" | grep -q "^feat" && [[ $bump != "major" ]] && bump=minor
@@ -50,7 +49,6 @@ jobs:
             exit 0
           fi
       
-          # Increment version
           case $bump in
             major)
               major=$((major + 1))
