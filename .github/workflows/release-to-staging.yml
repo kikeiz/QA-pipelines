@@ -34,10 +34,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build & Push Dev Image
+      - name: Build & Push Image
         id: build-image
         run: |
-          IMAGE_TAG=dev-${{ github.sha }}
+          IMAGE_TAG=release
           docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f Dockerfile .
           docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
           echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
