@@ -85,13 +85,13 @@ jobs:
 
       - name: Debug task name
         run: |
-          echo "Using task definition: ${{ secrets.TASK_DEFINITION }}"
+          echo "Using task definition: ${{ vars.TASK_DEFINITION }}"
 
       - name: Download and clean existing ECS task definition
         id: fetch-task
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ secrets.TASK_DEFINITION }} \
+            --task-definition ${{ vars.TASK_DEFINITION }} \
             --region ${{ vars.AWS_REGION }} \
             --query 'taskDefinition' \
             --output json > taskdef.json
