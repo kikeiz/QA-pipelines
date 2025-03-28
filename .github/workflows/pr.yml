@@ -1,0 +1,25 @@
+name: PR Checks (.NET - to develop or main)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build & Test .NET
+        run: |
+          dotnet restore
+          dotnet build
+          dotnet test
+          

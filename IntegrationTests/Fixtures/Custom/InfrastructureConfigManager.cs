@@ -28,7 +28,7 @@ namespace IntegrationTests.Fixtures.Custom
                 [
                     new GlobalSecondaryIndex
                     {
-                        IndexName = "status-priorityDate-Index",
+                        IndexName = "status-priorityDate-index",
                         KeySchema = 
                         {
                             new ("status", KeyType.HASH),
@@ -39,7 +39,7 @@ namespace IntegrationTests.Fixtures.Custom
                     },
                     new ()
                     {
-                        IndexName = "userId-status-Index",
+                        IndexName = "userId-status-index",
                         KeySchema = 
                         {
                             new KeySchemaElement("userId", KeyType.HASH),

@@ -1,0 +1,111 @@
+name: Deploy to Production (.NET)
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+env:
+  AWS_REGION: ${{ secrets.ECR_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME }}
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+  ECS_TASK_DEFINITION: ecs/task-definition.json
+  CONTAINER_NAME: container
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run Semantic Release
+        uses: cycjimmy/semantic-release-action@v3
+        with:
+          branches: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch tags created by Semantic Release
+        run: git fetch --tags
+
+      - name: Get latest tag
+        id: get_version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0)
+          echo "VERSION=$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+        
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Retag and Push Final Version
+        id: build-image
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          IMAGE=${{ secrets.ECR_REPO }}:release
+          docker pull $IMAGE
+          docker tag $IMAGE ${{ secrets.ECR_REPO }}:$VERSION
+          docker push ${{ secrets.ECR_REPO }}:$VERSION
+          echo "image=${{ secrets.ECR_REPO }}:$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download and clean existing ECS task definition
+        id: fetch-task
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ vars.TASK_DEFINITION }} \
+            --region ${{ vars.AWS_REGION }} \
+            --query 'taskDefinition' \
+            --output json > taskdef.json
+
+          jq 'del(
+            .taskDefinitionArn,
+            .revision,
+            .status,
+            .requiresAttributes,
+            .compatibilities,
+            .registeredAt,
+            .registeredBy
+          )' taskdef.json > taskdef-clean.json
+  
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef-clean.json
+          container-name: ${{ vars.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+          environment-variables: |
+            AWS_REGION=${{ vars.AWS_REGION }}
+            QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}
+            REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
+            ASPNETCORE_ENVIRONMENT=Development
+            QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
+            USER_TABLE=${{ vars.USER_TABLE }}
+            MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Cleanup task definition files
+        run: rm -f taskdef.json taskdef-clean.json

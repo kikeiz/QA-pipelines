@@ -1,0 +1,130 @@
+name: Deploy to Dev (.NET)
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+jobs:
+  check-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      valid_branch: ${{ steps.check.outputs.valid_branch }}
+    steps:
+      - name: Validate source branch name
+        id: check
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "Source branch: $BRANCH"
+          if [[ "$BRANCH" =~ ^feature/.* || "$BRANCH" =~ ^bugfix/.* ]]; then
+            echo "✅ Valid branch: $BRANCH"
+            echo "valid_branch=true" >> $GITHUB_OUTPUT
+          else
+            echo "⛔ Invalid branch: $BRANCH"
+            echo "valid_branch=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  analyze-commits:
+    runs-on: ubuntu-latest
+    needs: check-branch
+    if: needs.check-branch.outputs.valid_branch == 'true'
+    outputs:
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          COMMITS=$(git log -1 --pretty=%B)
+          echo "Last commit message: $COMMITS"
+          if echo "$COMMITS" | grep -E "(feat|fix|BREAKING CHANGE)"; then
+            echo "✅ Relevant change found. Proceeding with deploy."
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No relevant changes. Skipping deploy."
+            echo "deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-deploy:
+    environment: development
+    needs: [check-branch, analyze-commits]
+    if: needs.analyze-commits.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build .NET project
+        run: |
+          dotnet restore
+          dotnet build
+          dotnet test
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+
+      - name: Build & Push Dev Image
+        id: build-image
+        run: |
+          IMAGE_TAG=dev-${{ github.sha }}
+          docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f Dockerfile .
+          docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
+          echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download and clean existing ECS task definition
+        id: fetch-task
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ vars.TASK_DEFINITION }} \
+            --region ${{ vars.AWS_REGION }} \
+            --query 'taskDefinition' \
+            --output json > taskdef.json
+
+          jq 'del(
+            .taskDefinitionArn,
+            .revision,
+            .status,
+            .requiresAttributes,
+            .compatibilities,
+            .registeredAt,
+            .registeredBy
+          )' taskdef.json > taskdef-clean.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef-clean.json
+          container-name: ${{ vars.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+          environment-variables: |
+            AWS_REGION=${{ vars.AWS_REGION }}
+            QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}
+            REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
+            ASPNETCORE_ENVIRONMENT=Development
+            QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
+            USER_TABLE=${{ vars.USER_TABLE }}
+            MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Cleanup task definition files
+        run: rm -f taskdef.json taskdef-clean.json
