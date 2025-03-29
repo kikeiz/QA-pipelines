@@ -78,7 +78,7 @@ jobs:
       - name: Build & Push Dev Image
         id: build-image
         run: |
-          IMAGE_TAG=dev-${{ github.sha }}
+          IMAGE_TAG=dev
           docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f Dockerfile .
           docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
           echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
