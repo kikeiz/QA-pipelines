@@ -16,7 +16,8 @@ jobs:
         run: |
           BRANCH="${{ github.head_ref }}"
           echo "Source branch: $BRANCH"
-          if [[ "$BRANCH" =~ ^feature/.* || "$BRANCH" =~ ^bugfix/.* ]]; then
+          regex="^(feature|bugfix)/ACTO-[0-9]{4,5}-[A-Za-z0-9]+-[A-Za-z0-9]+$"
+          if [[ "$BRANCH" =~ $regex ]]; then
             echo "✅ Valid branch: $BRANCH"
             echo "valid_branch=true" >> $GITHUB_OUTPUT
           else
@@ -125,6 +126,17 @@ jobs:
           service: ${{ secrets.ECS_SERVICE }}
           cluster: ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
+
+      - name: Delete tag 'release' from ECR
+        run: |
+          echo "🧼 Deleting tag 'dev' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
+          
+          aws ecr batch-delete-image \
+            --repository-name "${{ vars.REPO_NAME }}" \
+            --region "${{ vars.AWS_REGION }}" \
+            --image-ids imageTag="release"
+
+          echo "✅ Deleted tag 'dev'."
 
       - name: Cleanup task definition files
         run: rm -f taskdef.json taskdef-clean.json
