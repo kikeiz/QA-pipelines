@@ -189,16 +189,17 @@ jobs:
           cluster: ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Delete tag 'release' from ECR
+        run: |
+          echo "🧼 Deleting tag 'release' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
+          
+          aws ecr batch-delete-image \
+            --repository-name "${{ secrets.ECR_REPO }}" \
+            --region "${{ vars.AWS_REGION }}" \
+            --image-ids imageTag="release"
+            
+          echo "✅ Deleted tag 'release'."
+
       - name: Cleanup task definition files
         run: rm -f taskdef.json taskdef-clean.json
-
-  delete-release-tag:
-    name: Delete ECR 'release' tag
-    needs: deploy
-    uses: ./.github/workflows/delete-ecr-tag.yml
-    with:
-      repo: ${{ vars.ECR_REPO }}
-      region: ${{ vars.AWS_REGION }}
-      tag: release
-    secrets: inherit
   
