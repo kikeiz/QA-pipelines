@@ -194,10 +194,10 @@ jobs:
           echo "🧼 Deleting tag 'release' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
           
           aws ecr batch-delete-image \
-            --repository-name "${{ vars.ECR_REPO }}" \
+            --repository-name "${{ vars.REPO_NAME }}" \
             --region "${{ vars.AWS_REGION }}" \
             --image-ids imageTag="release"
-            
+
           echo "✅ Deleted tag 'release'."
 
       - name: Cleanup task definition files
