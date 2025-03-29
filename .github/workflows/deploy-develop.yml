@@ -127,14 +127,14 @@ jobs:
           cluster: ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      - name: Delete tag 'release' from ECR
+      - name: Delete tag 'dev' from ECR
         run: |
           echo "🧼 Deleting tag 'dev' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
           
           aws ecr batch-delete-image \
             --repository-name "${{ vars.REPO_NAME }}" \
             --region "${{ vars.AWS_REGION }}" \
-            --image-ids imageTag="release"
+            --image-ids imageTag="dev"
 
           echo "✅ Deleted tag 'dev'."
 
