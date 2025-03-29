@@ -5,20 +5,100 @@ on:
     types: [closed]
     branches: [main]
 
-env:
-  AWS_REGION: ${{ secrets.ECR_REGION }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME }}
-  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
-  ECS_TASK_DEFINITION: ecs/task-definition.json
-  CONTAINER_NAME: container
-
 permissions:
   contents: read
 
 jobs:
+  analyze-commits:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write 
+      packages: write 
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine next version and tag
+        id: versioning
+        run: |
+          echo "🔍 Getting latest valid semantic version tag..."
+          
+          # Fetch all tags
+          git fetch --tags
+      
+          # Find the highest valid semver tag or fallback to v0.0.0
+          latest_tag=$(git tag --list 'v*' | sort -V | tail -n 1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+      
+          echo "Latest tag: $latest_tag"
+      
+          # Remove leading 'v' and split version
+          version=${latest_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+      
+          echo "🧾 Getting commits since $latest_tag..."
+      
+          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
+            commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
+          else
+            commits=$(git log --pretty=format:%B)
+          fi
+      
+          # Determine version bump type
+          echo "$commits" | grep -q "BREAKING CHANGE" && bump=major
+          echo "$commits" | grep -q "^feat" && [[ $bump != "major" ]] && bump=minor
+          echo "$commits" | grep -q "^fix" && [[ -z "$bump" ]] && bump=patch
+      
+          if [[ -z "$bump" ]]; then
+            echo "ℹ️ No version-worthy changes found. Skipping tag."
+            echo "new_tag=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+      
+          # Apply the bump
+          case $bump in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+      
+          new_tag="v$major.$minor.$patch"
+          echo "📦 New version: $new_tag"
+      
+          # Set it as an output
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Use new version
+        run: echo "The new tag is ${{ steps.versioning.outputs.new_tag }}"
+
+      - name: Commit version bump and create tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v${{ steps.versioning.outputs.new_tag }} [skip ci]" || echo "No changes to commit"
+          git tag ${{ steps.versioning.outputs.new_tag }}
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          git push origin main --tags
+
   deploy:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+    needs: analyze-commits
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -30,14 +110,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Run Semantic Release
-        uses: cycjimmy/semantic-release-action@v3
-        with:
-          branches: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Fetch tags created by Semantic Release
         run: git fetch --tags
@@ -49,7 +122,6 @@ jobs:
           echo "VERSION=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-        
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
@@ -58,11 +130,21 @@ jobs:
         id: build-image
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          IMAGE=${{ secrets.ECR_REPO }}:release
-          docker pull $IMAGE
-          docker tag $IMAGE ${{ secrets.ECR_REPO }}:$VERSION
-          docker push ${{ secrets.ECR_REPO }}:$VERSION
-          echo "image=${{ secrets.ECR_REPO }}:$VERSION" >> $GITHUB_OUTPUT
+          REPO=${{ secrets.ECR_REPO }}
+
+          # Pull the 'release' image (built in staging)
+          docker pull $REPO:release
+
+          # Tag it with the final version
+          docker tag $REPO:release $REPO:$VERSION
+
+          # Push only the version tag
+          docker push $REPO:$VERSION
+
+          # Optional: untag the 'release' tag locally
+          docker rmi $REPO:release || true
+
+          echo "image=$REPO:$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download and clean existing ECS task definition
         id: fetch-task
@@ -107,5 +189,18 @@ jobs:
           cluster: ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Delete tag 'release' from ECR
+        run: |
+          echo "🧼 Deleting tag 'release' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
+          
+          aws ecr batch-delete-image \
+            --repository-name "${{ vars.REPO_NAME }}" \
+            --region "${{ vars.AWS_REGION }}" \
+            --image-ids imageTag="release"
+
+          echo "✅ Deleted tag 'release'."
+
+          
       - name: Cleanup task definition files
         run: rm -f taskdef.json taskdef-clean.json
+  
