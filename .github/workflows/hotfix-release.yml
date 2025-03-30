@@ -123,10 +123,10 @@ jobs:
     needs: build-and-deploy-hotfix
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main branch
+      - name: Checkout develop branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: develop
 
       - name: Configure Git for merge
         run: |
@@ -137,6 +137,5 @@ jobs:
         run: |
           echo "Merging main into develop..."
           git fetch origin main
-          # Merge main into develop with auto-resolving conflicts in favor of main
           git merge origin/main --no-ff --allow-unrelated-histories -X theirs -m "Merge main into develop after hotfix deployment"
           git push origin develop
