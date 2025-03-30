@@ -138,5 +138,5 @@ jobs:
           echo "Merging main into develop..."
           git fetch origin develop
           git checkout develop
-          git merge origin/main --no-ff -m "Merge main into develop after hotfix deployment"
+          git merge origin/main --no-ff --allow-unrelated-histories -m "Merge main into develop after hotfix deployment"
           git push origin develop
