@@ -24,7 +24,7 @@ jobs:
     needs: build_and_test
     uses: ./.github/workflows/check-if-needs-deploy.yml
 
-  build_and_push:
+  build_and_push_image:
     needs: check_if_deploy_needed 
     if: needs.check_if_deploy_needed.outputs.deploy == 'true'
     uses: ./.github/workflows/build-push-image.yml
@@ -34,14 +34,14 @@ jobs:
     secrets: inherit
 
   debug_image_output:
-    needs: build_and_push
+    needs: build_and_push_image
     runs-on: ubuntu-latest
     steps:
       - name: Echo image output from reusable build
-        run: echo "🔍 Image from reusable = ${{ needs.build_and_push.outputs.image }}"
-        
+        run: echo "🔍 Image from reusable = ${{ needs.build_and_push_image.outputs.image }}"
+
   export_vars:
-    needs: build_and_push 
+    needs: build_and_push_image 
     runs-on: ubuntu-latest
     environment: development
     outputs:
@@ -64,10 +64,10 @@ jobs:
           echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
 
   deploy_to_ecs:
-    needs: [export_vars, build_and_push]
+    needs: [export_vars, build_and_push_image]
     uses: ./.github/workflows/deploy-ecs.yml
     with:
-      image: ${{ needs.build_and_push.outputs.image }}
+      image: ${{ needs.build_and_push_image.outputs.image }}
       environment: development
       environment_variables: |
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
