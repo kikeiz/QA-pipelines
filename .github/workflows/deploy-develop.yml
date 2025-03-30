@@ -48,12 +48,13 @@ jobs:
     steps:
       - id: vars
         run: |
-          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
-          echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
-          echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
-          echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
-          echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
-          echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "QA_SQS_QUEUE_URL=$QA_SQS_QUEUE_URL" >> $GITHUB_OUTPUT
+          echo "REMARKETING_SERVICE_QUEUE_URL=$REMARKETING_SERVICE_QUEUE_URL" >> $GITHUB_OUTPUT
+          echo "ASPNETCORE_ENVIRONMENT=$ASPNETCORE_ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "QA_PROCESS_TABLE=$QA_PROCESS_TABLE" >> $GITHUB_OUTPUT
+          echo "USER_TABLE=$USER_TABLE" >> $GITHUB_OUTPUT
+          echo "MAX_NUM_PROCESSES=$MAX_NUM_PROCESSES" >> $GITHUB_OUTPUT
 
   deploy_to_ecs:
     needs: [export_vars, build_and_push]
