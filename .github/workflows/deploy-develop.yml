@@ -12,17 +12,30 @@ jobs:
       deploy: ${{ steps.check.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
+
       - id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMITS=$(git log -1 --pretty=%B)
-          echo "Last commit message: $COMMITS"
-          if echo "$COMMITS" | grep -E "(feat|fix|BREAKING CHANGE)"; then
+          echo "Fetching commits from the pull request via GitHub API..."
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          commits=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits \
+            | jq -r '.[].commit.message')
+          
+          echo "Commit messages from PR:"
+          echo "$commits"
+          
+          # Check (case-insensitively) for feat, fix, or BREAKING CHANGE in any commit message
+          if echo "$commits" | grep -Eiq "(feat|fix|BREAKING CHANGE)"; then
             echo "✅ Relevant change found. Proceeding with deploy."
             echo "deploy=true" >> $GITHUB_OUTPUT
           else
             echo "ℹ️ No relevant changes. Skipping deploy."
             echo "deploy=false" >> $GITHUB_OUTPUT
           fi
+          
   build-and-deploy:
     environment: development
     needs: [analyze-commits]
