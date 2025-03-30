@@ -54,6 +54,10 @@ jobs:
           echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
         shell: bash
   
+      - name: Debug step output
+        run: |
+          echo "✅ Step output: ${{ steps.build.outputs.image }}"
+
       - name: Push Docker image
         id: push
         run: |
