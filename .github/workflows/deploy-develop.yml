@@ -33,6 +33,13 @@ jobs:
       environment: development
     secrets: inherit
 
+  debug_image_output:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo image output from reusable build
+        run: echo "🔍 Image from reusable = ${{ needs.build_and_push.outputs.image }}"
+        
   export_vars:
     needs: build_and_push 
     runs-on: ubuntu-latest
