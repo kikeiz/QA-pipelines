@@ -3,7 +3,7 @@ name: Build & Push Image (Reusable)
 on:
   workflow_call:
     outputs:
-      build:
+      image:
         description: "Image that was built"
         value: ${{ jobs.build_and_push.outputs.image }}
     inputs:
@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
