@@ -7,25 +7,25 @@ on:
 
 jobs:
   build_and_test: 
-    uses: ./.github/workflows/reusable/verify-dotnet.yml
+    uses: ./.github/workflows/verify-dotnet.yml
     with:
       dotnet_version: '9.0.x'
 
   check_if_deploy_needed:
     needs: build_and_test
-    uses: ./.github/workflows/reusable/check-if-needs-deploy.yml
+    uses: ./.github/workflows/check-if-needs-deploy.yml
 
   build_and_push:
     needs: check_if_deploy_needed 
     if: needs.check_if_deploy_needed.outputs.deploy == 'true'
-    uses: ./.github/workflows/reusable/build-push-image.yml
+    uses: ./.github/workflows/build-push-image.yml
     with:
       image_tag: dev
       environment: development
 
   deploy_to_ecs:
     needs: build_and_push
-    uses: ./.github/workflows/reusable/deploy-ecs.yml
+    uses: ./.github/workflows/deploy-ecs.yml
     with:
       image: ${{ needs.build_and_push.outputs.build }}
       environment: development
@@ -40,7 +40,7 @@ jobs:
 
   delete_ecr_tag: 
     needs: deploy_to_ecs
-    uses: ./.github/workflows/reusable/delete-ecr-tag.yml
+    uses: ./.github/workflows/delete-ecr-tag.yml
     with:
       environment: development
       tag: dev
