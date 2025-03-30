@@ -12,20 +12,19 @@ jobs:
   analyze-commits:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
-
     permissions:
-      contents: write 
-      packages: write 
-      
+      contents: write
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Determine next version and tag
         id: versioning
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Getting latest valid semantic version tag..."
-          
           # Fetch all tags
           git fetch --tags
       
@@ -34,22 +33,24 @@ jobs:
           if [ -z "$latest_tag" ]; then
             latest_tag="v0.0.0"
           fi
-      
           echo "Latest tag: $latest_tag"
       
-          # Remove leading 'v' and split version
+          # Remove leading 'v' and split version numbers
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
       
-          echo "🧾 Getting commits since $latest_tag..."
+          echo "🧾 Fetching commit messages from the pull request via GitHub API..."
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "Fetching commits for PR #$PR_NUMBER"
+          commits=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits \
+            | jq -r '.[].commit.message')
       
-          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
-            commits=$(git log "$latest_tag"..HEAD --pretty=format:%B)
-          else
-            commits=$(git log --pretty=format:%B)
-          fi
+          echo "Commit messages from PR:"
+          echo "$commits"
       
-          # Determine version bump type
+          # Determine version bump type based on commit messages
           echo "$commits" | grep -q "BREAKING CHANGE" && bump=major
           echo "$commits" | grep -q "^feat" && [[ $bump != "major" ]] && bump=minor
           echo "$commits" | grep -q "^fix" && [[ -z "$bump" ]] && bump=patch
@@ -60,7 +61,7 @@ jobs:
             exit 0
           fi
       
-          # Apply the bump
+          # Apply version bump
           case $bump in
             major)
               major=$((major + 1))
@@ -79,7 +80,7 @@ jobs:
           new_tag="v$major.$minor.$patch"
           echo "📦 New version: $new_tag"
       
-          # Set it as an output
+          # Set new_tag as an output for later jobs
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
       - name: Use new version
@@ -91,11 +92,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): v${{ steps.versioning.outputs.new_tag }} [skip ci]" || echo "No changes to commit"
+          git commit -am "chore(release): ${{ steps.versioning.outputs.new_tag }} [skip ci]" || echo "No changes to commit"
           git tag ${{ steps.versioning.outputs.new_tag }}
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
           git push origin main --tags
-
+          
   deploy:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
     needs: analyze-commits
