@@ -1,0 +1,38 @@
+name: "Commit Version Bump and Create Tag"
+description: "Commits any version bump, creates a Git tag from the new tag, and pushes it to the remote repository."
+inputs:
+  new_tag:
+    description: "The new version tag (e.g., v1.2.3) to create."
+    required: true
+  branch:
+    description: "The branch to push the tag to. Defaults to 'main'."
+    required: false
+    default: "main"
+runs:
+  using: "composite"
+  steps:
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      shell: bash
+
+    - name: Commit version bump
+      run: |
+        git commit -am "chore(release): ${{ inputs.new_tag }} [skip ci]" || echo "No changes to commit"
+      shell: bash
+
+    - name: Create Git tag
+      run: |
+        git tag ${{ inputs.new_tag }}
+      shell: bash
+
+    - name: Set remote URL with token
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+      shell: bash
+
+    - name: Push tags to remote
+      run: |
+        git push origin ${{ inputs.branch }} --tags
+      shell: bash
