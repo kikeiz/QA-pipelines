@@ -16,7 +16,7 @@ jobs:
         run: |
           BRANCH="${{ github.head_ref }}"
           echo "Source branch: $BRANCH"
-          regex="^(release|hotfix)/[A-Za-z0-9]+$"
+          regex="^(release|hotfix)/[A-Za-z0-9-]+$"
           if [[ "$BRANCH" =~ $regex ]]; then
             echo "✅ Valid branch: $BRANCH"
             echo "valid_branch=true" >> $GITHUB_OUTPUT
