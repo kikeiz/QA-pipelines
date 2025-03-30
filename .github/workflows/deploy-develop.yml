@@ -15,7 +15,7 @@ env:
   MAX_NUM_PROCESSES: ${{ vars.MAX_NUM_PROCESSES }}
 
 jobs:
-  build_and_test: 
+  build_and_test:
     uses: ./.github/workflows/verify-dotnet.yml
     with:
       dotnet_version: '9.0.x'
@@ -25,7 +25,7 @@ jobs:
     uses: ./.github/workflows/check-if-needs-deploy.yml
 
   build_and_push_image:
-    needs: check_if_deploy_needed 
+    needs: check_if_deploy_needed
     if: needs.check_if_deploy_needed.outputs.deploy == 'true'
     uses: ./.github/workflows/build-push-image.yml
     with:
@@ -38,10 +38,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Echo image output from reusable build
-        run: echo "🔍 Image from reusable = ${{ needs.build_and_push_image.outputs.image }}"
+        run: echo "🔍 Image from reusable = [${{ needs.build_and_push_image.outputs.image }}]"
 
   export_vars:
-    needs: build_and_push_image 
+    needs: build_and_push_image
     runs-on: ubuntu-latest
     environment: development
     outputs:
@@ -59,6 +59,7 @@ jobs:
           echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
           echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
           echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }}" >> $GITHUB_OUTPUT
           echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
           echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
           echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
@@ -73,13 +74,13 @@ jobs:
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
         QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
         REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
-        ASPNETCORE_ENVIRONMENT=Development
+        ASPNETCORE_ENVIRONMENT=${{ needs.export_vars.outputs.ASPNETCORE_ENVIRONMENT }}
         QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
         USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
     secrets: inherit
 
-  delete_ecr_tag: 
+  delete_ecr_tag:
     needs: deploy_to_ecs
     uses: ./.github/workflows/delete-ecr-tag.yml
     with:

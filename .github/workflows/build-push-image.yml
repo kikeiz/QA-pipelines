@@ -5,7 +5,7 @@ on:
     outputs:
       image:
         description: "Image that was built"
-        value: ${{ jobs.build_and_push.outputs.image }}
+        value: ${{ jobs.build_and_push.outputs.image || 'unset' }}
     inputs:
       image_tag:
         description: 'The tag to use for the Docker image'
@@ -47,20 +47,17 @@ jobs:
         run: |
           IMAGE_TAG=${{ inputs.image_tag }}
           echo "Building Docker image with tag $IMAGE_TAG..."
-          docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f Dockerfile .
           docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f ${{ inputs.dockerfile }} .
           echo "Built image: ${{ secrets.ECR_REPO }}:$IMAGE_TAG"
           echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
         shell: bash
-  
+        
       - name: Debug step output
         run: |
           echo "✅ Step output: ${{ steps.build.outputs.image }}"
 
       - name: Push Docker image
-        id: push
         run: |
           IMAGE_TAG=${{ inputs.image_tag }}
-          echo "Pushing Docker image with tag $IMAGE_TAG..."
           docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
         shell: bash
