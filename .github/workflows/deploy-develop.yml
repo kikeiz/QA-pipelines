@@ -34,8 +34,9 @@ jobs:
     secrets: inherit
 
   export_vars:
-    needs: check_if_deploy_needed 
+    needs: build_and_push 
     runs-on: ubuntu-latest
+    environment: development
     outputs:
       AWS_REGION: ${{ steps.vars.outputs.AWS_REGION }}
       QA_SQS_QUEUE_URL: ${{ steps.vars.outputs.QA_SQS_QUEUE_URL }}
@@ -48,13 +49,12 @@ jobs:
     steps:
       - id: vars
         run: |
-          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
-          echo "QA_SQS_QUEUE_URL=$QA_SQS_QUEUE_URL" >> $GITHUB_OUTPUT
-          echo "REMARKETING_SERVICE_QUEUE_URL=$REMARKETING_SERVICE_QUEUE_URL" >> $GITHUB_OUTPUT
-          echo "ASPNETCORE_ENVIRONMENT=$ASPNETCORE_ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "QA_PROCESS_TABLE=$QA_PROCESS_TABLE" >> $GITHUB_OUTPUT
-          echo "USER_TABLE=$USER_TABLE" >> $GITHUB_OUTPUT
-          echo "MAX_NUM_PROCESSES=$MAX_NUM_PROCESSES" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
+          echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
+          echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
+          echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
 
   deploy_to_ecs:
     needs: [export_vars, build_and_push]
