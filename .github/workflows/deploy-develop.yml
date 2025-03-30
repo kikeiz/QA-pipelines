@@ -5,6 +5,15 @@ on:
     types: [closed]
     branches: [develop]
 
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  QA_SQS_QUEUE_URL: ${{ vars.QA_SQS_QUEUE_URL }}
+  REMARKETING_SERVICE_QUEUE_URL: ${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
+  ASPNETCORE_ENVIRONMENT: Development
+  QA_PROCESS_TABLE: ${{ vars.QA_PROCESS_TABLE }}
+  USER_TABLE: ${{ vars.USER_TABLE }}
+  MAX_NUM_PROCESSES: ${{ vars.MAX_NUM_PROCESSES }}
+
 jobs:
   build_and_test: 
     uses: ./.github/workflows/verify-dotnet.yml
@@ -28,16 +37,16 @@ jobs:
     needs: build_and_push
     uses: ./.github/workflows/deploy-ecs.yml
     with:
-      image: ${{ needs.build_and_push.outputs.build }}
+      image: ${{ needs.build_and_push.outputs.image }}
       environment: development
       environment_variables: |
-        AWS_REGION=${{ vars.AWS_REGION }}
-        QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}
-        REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
+        AWS_REGION=$AWS_REGION
+        QA_SQS_QUEUE_URL=$QA_SQS_QUEUE_URL
+        REMARKETING_SERVICE_QUEUE_URL=$REMARKETING_SERVICE_QUEUE_URL
         ASPNETCORE_ENVIRONMENT=Development
-        QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
-        USER_TABLE=${{ vars.USER_TABLE }}
-        MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
+        QA_PROCESS_TABLE=$QA_PROCESS_TABLE
+        USER_TABLE=$USER_TABLE
+        MAX_NUM_PROCESSES=$MAX_NUM_PROCESSES
     secrets: inherit
 
   delete_ecr_tag: 
