@@ -2,7 +2,7 @@ name: PR Checks (.NET - to develop or main)
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [main]
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
         run: |
           BRANCH="${{ github.head_ref }}"
           echo "Source branch: $BRANCH"
-          regex="^(feature|bugfix)/ACTO-[0-9]{4,7}(-[A-Za-z0-9]+)+$"
+          regex="^(release|hotfix)/ACTO-[0-9]{4,7}(-[A-Za-z0-9]+)+$"
           if [[ "$BRANCH" =~ $regex ]]; then
             echo "✅ Valid branch: $BRANCH"
             echo "valid_branch=true" >> $GITHUB_OUTPUT
