@@ -22,6 +22,7 @@ jobs:
     with:
       image_tag: dev
       environment: development
+    secrets: inherit
 
   deploy_to_ecs:
     needs: build_and_push
@@ -37,6 +38,7 @@ jobs:
         QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
         USER_TABLE=${{ vars.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
+    secrets: inherit
 
   delete_ecr_tag: 
     needs: deploy_to_ecs
@@ -44,3 +46,4 @@ jobs:
     with:
       environment: development
       tag: dev
+    secrets: inherit
