@@ -23,6 +23,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Print received image input
+        run: |
+          echo "🧩 Received image input: ${{ inputs.image }}"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
