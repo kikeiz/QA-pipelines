@@ -1,0 +1,18 @@
+name: PR Checks (.NET - release)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - release/**
+  
+
+jobs:
+  check-branch:
+    uses: kikeiz/shared-workflows/.github/workflows/validate-branch-name.yml@v1
+    with:
+      branch_regex: '^release-fix/ACTO-[0-9]{4,7}(-[A-Za-z0-9]+)+$'
+
+  verify:
+    needs: check-branch
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
