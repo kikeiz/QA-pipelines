@@ -5,15 +5,6 @@ on:
     types: [closed]
     branches: [develop]
 
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  QA_SQS_QUEUE_URL: ${{ vars.QA_SQS_QUEUE_URL }}
-  REMARKETING_SERVICE_QUEUE_URL: ${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
-  ASPNETCORE_ENVIRONMENT: Development
-  QA_PROCESS_TABLE: ${{ vars.QA_PROCESS_TABLE }}
-  USER_TABLE: ${{ vars.USER_TABLE }}
-  MAX_NUM_PROCESSES: ${{ vars.MAX_NUM_PROCESSES }}
-
 jobs:
   build_and_test:
     uses: ./.github/workflows/verify-dotnet.yml
@@ -33,13 +24,6 @@ jobs:
       environment: development
     secrets: inherit
 
-  debug_image_output:
-    needs: build_and_push_image
-    runs-on: ubuntu-latest
-    steps:
-      - name: Echo image output from reusable build
-        run: echo "🔍 Image from reusable = [${{ needs.build_and_push_image.outputs.image }}]"
-
   export_vars:
     needs: build_and_push_image
     runs-on: ubuntu-latest
@@ -48,10 +32,10 @@ jobs:
       AWS_REGION: ${{ steps.vars.outputs.AWS_REGION }}
       QA_SQS_QUEUE_URL: ${{ steps.vars.outputs.QA_SQS_QUEUE_URL }}
       REMARKETING_SERVICE_QUEUE_URL: ${{ steps.vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
-      ASPNETCORE_ENVIRONMENT: ${{ steps.vars.outputs.ASPNETCORE_ENVIRONMENT }}
       QA_PROCESS_TABLE: ${{ steps.vars.outputs.QA_PROCESS_TABLE }}
       USER_TABLE: ${{ steps.vars.outputs.USER_TABLE }}
       MAX_NUM_PROCESSES: ${{ steps.vars.outputs.MAX_NUM_PROCESSES }}
+      IMAGE: ${{ steps.vars.outputs.IMAGE }}
 
     steps:
       - id: vars
@@ -59,22 +43,22 @@ jobs:
           echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
           echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
           echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
-          echo "ASPNETCORE_ENVIRONMENT=${{ env.ASPNETCORE_ENVIRONMENT }}" >> $GITHUB_OUTPUT
           echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
           echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
           echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
+          echo "IMAGE=${{ secrets.ECR_REPO }}:dev" >> $GITHUB_OUTPUT
 
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
     uses: ./.github/workflows/deploy-ecs.yml
     with:
-      image: ${{ needs.build_and_push_image.outputs.image }}
-      environment: development
+      image: ${{ needs.export_vars.outputs.IMAGE }}
+      environment: ${{ needs.export_vars.outputs.IMAGE }}
       environment_variables: |
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
         QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
         REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
-        ASPNETCORE_ENVIRONMENT=${{ needs.export_vars.outputs.ASPNETCORE_ENVIRONMENT }}
+        ASPNETCORE_ENVIRONMENT=Development
         QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
         USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
