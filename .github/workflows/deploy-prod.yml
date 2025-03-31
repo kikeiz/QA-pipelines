@@ -10,8 +10,14 @@ permissions:
   packages: write
   
 jobs:
-  analyze-commits: 
+  build_and_test:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+    uses: ./.github/workflows/verify-dotnet.yml
+    with:
+      dotnet_version: '9.0.x'
+
+  analyze-commits: 
+    needs: build_and_test
     runs-on: ubuntu-latest
     outputs:
       new_tag: ${{ steps.versioning.outputs.new_tag }}
