@@ -38,6 +38,11 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: Debug image
+        run: |
+          echo "🔍 Debugging image..."
+          echo "Image=${{ inputs.image }}" >> $GITHUB_OUTPUT
+
       - name: Download and clean existing ECS task definition
         id: fetch-task
         run: |
