@@ -53,7 +53,7 @@ jobs:
     uses: ./.github/workflows/deploy-ecs.yml
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
-      environment: ${{ needs.export_vars.outputs.IMAGE }}
+      environment: development
       environment_variables: |
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
         QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
