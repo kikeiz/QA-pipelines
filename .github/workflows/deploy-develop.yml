@@ -47,20 +47,6 @@ jobs:
           echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
           echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
           echo "IMAGE=${{ vars.ECR_REPO }}:dev" >> $GITHUB_OUTPUT
-
-  debug:
-    needs: export_vars
-    runs-on: ubuntu-latest
-    steps:
-      - name: Debug
-        run: |
-          echo "AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}"
-          echo "QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}"
-          echo "REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}"
-          echo "QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}"
-          echo "USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}"
-          echo "MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}"
-          echo "IMAGE=${{ needs.export_vars.outputs.IMAGE }}"
       
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
