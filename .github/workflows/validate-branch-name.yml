@@ -1,0 +1,25 @@
+name: Validate Branch Name (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      branch_regex:
+        description: 'Regex pattern to match valid branch names'
+        required: true
+        type: string
+
+jobs:
+  check_branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source branch name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "🔍 Source branch: $BRANCH"
+          regex="${{ inputs.branch_regex }}"
+          if [[ "$BRANCH" =~ $regex ]]; then
+            echo "✅ Valid branch: $BRANCH"
+          else
+            echo "⛔ Invalid branch: $BRANCH"
+            exit 1
+          fi

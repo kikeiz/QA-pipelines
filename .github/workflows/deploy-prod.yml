@@ -184,3 +184,10 @@ jobs:
       environment: production
       tag: release
     secrets: inherit
+
+  propagate-changes:
+    needs: [delete_ecr_tag]
+    uses: ./.github/workflows/merge-workflow.yml
+    with: 
+      target_branch: develop
+      source_branch: main
