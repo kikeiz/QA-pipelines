@@ -1,0 +1,38 @@
+name: Merge Branch (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      target_branch:
+        description: 'The branch to check out and merge into (e.g. develop)'
+        required: true
+        type: string
+      source_branch:
+        description: 'The branch to merge from (e.g. main)'
+        required: true
+        type: string
+      merge_message:
+        description: 'The commit message for the merge commit'
+        required: false
+        type: string
+        default: 'Merge source branch into target branch'
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch }}
+
+      - name: Configure Git for merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge source branch into target branch
+        run: |
+          echo "Merging '${{ inputs.source_branch }}' into '${{ inputs.target_branch }}'..."
+          git fetch origin ${{ inputs.source_branch }}
+          git merge origin/${{ inputs.source_branch }} --no-ff --allow-unrelated-histories -X theirs -m "${{ inputs.merge_message }}"
+          git push origin ${{ inputs.target_branch }}
