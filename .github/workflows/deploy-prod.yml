@@ -9,9 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  analyze-commits:
+  analyze-commits: 
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.versioning.outputs.new_tag }}
     permissions:
       contents: write
       packages: write
@@ -86,52 +88,33 @@ jobs:
       - name: Use new version
         run: echo "The new tag is ${{ steps.versioning.outputs.new_tag }}"
 
-      - name: Commit version bump and create tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): ${{ steps.versioning.outputs.new_tag }} [skip ci]" || echo "No changes to commit"
-          git tag ${{ steps.versioning.outputs.new_tag }}
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
-          git push origin main --tags
-          
-  deploy:
-    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
+  commit-tag-bump:
     needs: analyze-commits
+    uses: ./.github/workflows/commit-tag-bump.yml
+    with:
+      new_tag: ${{ needs.analyze-commits.outputs.new_tag }}
+  
+
+  pull-retag-and-push:
     runs-on: ubuntu-latest
     environment: production
+    needs: [commit-tag-bump, analyze-commits]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Fetch tags created by Semantic Release
-        run: git fetch --tags
-
-      - name: Get latest tag
-        id: get_version
-        run: |
-          VERSION=$(git describe --tags --abbrev=0)
-          echo "VERSION=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-
+  
       - name: Retag and Push Final Version
         id: build-image
         run: |
-          VERSION=${{ steps.get_version.outputs.version }}
-          REPO=${{ secrets.ECR_REPO }}
+          VERSION=${{ needs.analyze-commits.outputs.new_tag }}
+          REPO=${{ vars.ECR_REPO }}
 
           # Pull the 'release' image (built in staging)
           docker pull $REPO:release
@@ -147,61 +130,50 @@ jobs:
 
           echo "image=$REPO:$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download and clean existing ECS task definition
-        id: fetch-task
+  export_vars:
+    needs: [pull-retag-and-push, analyze-commits]
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      AWS_REGION: ${{ steps.vars.outputs.AWS_REGION }}
+      QA_SQS_QUEUE_URL: ${{ steps.vars.outputs.QA_SQS_QUEUE_URL }}
+      REMARKETING_SERVICE_QUEUE_URL: ${{ steps.vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
+      QA_PROCESS_TABLE: ${{ steps.vars.outputs.QA_PROCESS_TABLE }}
+      USER_TABLE: ${{ steps.vars.outputs.USER_TABLE }}
+      MAX_NUM_PROCESSES: ${{ steps.vars.outputs.MAX_NUM_PROCESSES }}
+      IMAGE: ${{ steps.vars.outputs.IMAGE }}
+
+    steps:
+      - id: vars
         run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ vars.TASK_DEFINITION }} \
-            --region ${{ vars.AWS_REGION }} \
-            --query 'taskDefinition' \
-            --output json > taskdef.json
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
+          echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
+          echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
+          echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
+          echo "IMAGE=${{ vars.ECR_REPO }}:${{ needs.analyze-commits.outputs.new_tag }}" >> $GITHUB_OUTPUT
+      
+  deploy_to_ecs:
+    needs: [export_vars, pull-retag-and-push]
+    uses: ./.github/workflows/deploy-ecs.yml
+    with:
+      image: ${{ needs.export_vars.outputs.IMAGE }}
+      environment: production
+      environment_variables: |
+        AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
+        QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
+        REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
+        ASPNETCORE_ENVIRONMENT=Production
+        QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
+        USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
+        MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
+    secrets: inherit
 
-          jq 'del(
-            .taskDefinitionArn,
-            .revision,
-            .status,
-            .requiresAttributes,
-            .compatibilities,
-            .registeredAt,
-            .registeredBy
-          )' taskdef.json > taskdef-clean.json
-  
-      - name: Fill in the new image ID in the Amazon ECS task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: taskdef-clean.json
-          container-name: ${{ vars.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
-          environment-variables: |
-            AWS_REGION=${{ vars.AWS_REGION }}
-            QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}
-            REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
-            ASPNETCORE_ENVIRONMENT=Development
-            QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
-            USER_TABLE=${{ vars.USER_TABLE }}
-            MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
-
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          wait-for-service-stability: true
-
-      - name: Delete tag 'release' from ECR
-        run: |
-          echo "🧼 Deleting tag 'release' from ECR repo '${{ secrets.ECR_REPO }}' in region '${{ vars.AWS_REGION }}'..."
-          
-          aws ecr batch-delete-image \
-            --repository-name "${{ vars.REPO_NAME }}" \
-            --region "${{ vars.AWS_REGION }}" \
-            --image-ids imageTag="release"
-
-          echo "✅ Deleted tag 'release'."
-
-          
-      - name: Cleanup task definition files
-        run: rm -f taskdef.json taskdef-clean.json
-  
+  delete_ecr_tag:
+    needs: deploy_to_ecs
+    uses: ./.github/workflows/delete-ecr-tag.yml
+    with:
+      environment: production
+      tag: release
+    secrets: inherit
