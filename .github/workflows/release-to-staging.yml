@@ -10,7 +10,24 @@ on:
       - release/*
 
 jobs:
+  should-run:
+    runs-on: ubuntu-latest
+    outputs:
+      continue: ${{ steps.set.outputs.should_run }}
+    steps:
+      - id: set
+        run: |
+          if [[ "${{ github.event_name }}" == "push" || ("${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.merged }}" == "true") ]]; then
+            echo "✅ Workflow should run"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Workflow should NOT run"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
   build_and_test:
+    needs: should-run
+    if: needs.should-run.outputs.continue == 'true'
     uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
     with:
       dotnet_version: '9.0.x'
