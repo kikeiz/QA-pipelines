@@ -7,13 +7,13 @@ on:
 
 jobs:
   build_and_test:
-    uses: ./.github/workflows/verify-dotnet.yml
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
     with:
       dotnet_version: '9.0.x'
 
   build_and_push_image:
     needs: build_and_test
-    uses: ./.github/workflows/build-push-image.yml
+    uses: kikeiz/shared-workflows/.github/workflows/build-push-image.yml@v1
     with:
       image_tag: release
       environment: staging
@@ -45,7 +45,7 @@ jobs:
       
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
-    uses: ./.github/workflows/deploy-ecs.yml
+    uses: kikeiz/shared-workflows/.github/workflows/deploy-ecs.yml@v1
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
       environment: staging

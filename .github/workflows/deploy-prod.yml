@@ -12,7 +12,7 @@ permissions:
 jobs:
   build_and_test:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release/')
-    uses: ./.github/workflows/verify-dotnet.yml
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
     with:
       dotnet_version: '9.0.x'
 
@@ -97,7 +97,7 @@ jobs:
 
   commit-tag-bump:
     needs: analyze-commits
-    uses: ./.github/workflows/commit-tag-bump.yml
+    uses: kikeiz/shared-workflows/.github/workflows/commit-tag-bump.yml@v1
     with:
       new_tag: ${{ needs.analyze-commits.outputs.new_tag }}
   
@@ -163,7 +163,7 @@ jobs:
       
   deploy_to_ecs:
     needs: [export_vars, pull-retag-and-push]
-    uses: ./.github/workflows/deploy-ecs.yml
+    uses: kikeiz/shared-workflows/.github/workflows/deploy-ecs.yml@v1
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
       environment: production
@@ -179,7 +179,7 @@ jobs:
 
   delete_ecr_tag:
     needs: deploy_to_ecs
-    uses: ./.github/workflows/delete-ecr-tag.yml
+    uses: kikeiz/shared-workflows/.github/workflows/delete-ecr-tag.yml@v1
     with:
       environment: production
       tag: release
@@ -187,7 +187,7 @@ jobs:
 
   propagate-changes:
     needs: [delete_ecr_tag]
-    uses: ./.github/workflows/merge-workflow.yml
+    uses: kikeiz/shared-workflows/.github/workflows/merge-workflow.yml@v1
     with: 
       target_branch: develop
       source_branch: main
