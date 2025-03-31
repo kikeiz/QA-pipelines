@@ -7,18 +7,18 @@ on:
 
 jobs:
   build_and_test:
-    uses: ./.github/workflows/verify-dotnet.yml
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
     with:
       dotnet_version: '9.0.x'
 
   check_if_deploy_needed:
     needs: build_and_test
-    uses: ./.github/workflows/check-if-needs-deploy.yml
+    uses: kikeiz/shared-workflows/.github/workflows/check-if-needs-deploy.yml@v1
 
   build_and_push_image:
     needs: check_if_deploy_needed
     if: needs.check_if_deploy_needed.outputs.deploy == 'true'
-    uses: ./.github/workflows/build-push-image.yml
+    uses: kikeiz/shared-workflows/.github/workflows/build-push-image.yml@v1
     with:
       image_tag: dev
       environment: development
@@ -50,7 +50,7 @@ jobs:
       
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
-    uses: ./.github/workflows/deploy-ecs.yml
+    uses: kikeiz/shared-workflows/.github/workflows/deploy-ecs.yml@v1
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
       environment: development
@@ -66,7 +66,7 @@ jobs:
 
   delete_ecr_tag:
     needs: deploy_to_ecs
-    uses: ./.github/workflows/delete-ecr-tag.yml
+    uses: kikeiz/shared-workflows/.github/workflows/delete-ecr-tag.yml@v1
     with:
       environment: development
       tag: dev
