@@ -59,7 +59,7 @@ jobs:
     secrets: inherit
 
   export_vars:
-    needs: build_and_push_image
+    needs: [build_and_push_image, determine-new-tag]
     runs-on: ubuntu-latest
     environment: production
     outputs:
@@ -80,26 +80,27 @@ jobs:
           echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
           echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
           echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
-          echo "IMAGE=${{ vars.ECR_REPO }}:dev" >> $GITHUB_OUTPUT
+          echo "IMAGE=${{ vars.ECR_REPO }}:${{ needs.determine-new-tag.outputs.new_tag }}" >> $GITHUB_OUTPUT
       
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
     uses: ./.github/workflows/deploy-ecs.yml
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
-      environment: development
+      environment: production
       environment_variables: |
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
         QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
         REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
-        ASPNETCORE_ENVIRONMENT=Development
+        ASPNETCORE_ENVIRONMENT=Production
         QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
         USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
     secrets: inherit
 
-    
+
   propagate-changes:
+    needs: [deploy_to_ecs]
     uses: ./.github/workflows/merge-workflow.yml
     with: 
       target_branch: develop
