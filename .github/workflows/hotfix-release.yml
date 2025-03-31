@@ -98,6 +98,7 @@ jobs:
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
     secrets: inherit
 
+    
   propagate-changes:
     uses: ./.github/workflows/merge-workflow.yml
     with: 
