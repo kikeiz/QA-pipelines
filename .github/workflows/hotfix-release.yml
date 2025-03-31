@@ -6,37 +6,23 @@ on:
     branches: [main]
 
 jobs:
-  build-and-deploy-hotfix:
+  build_and_test:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'hotfix/')
-    environment: production
+    uses: ./.github/workflows/verify-dotnet.yml
+    with:
+      dotnet_version: '9.0.x'
+
+  determine-new-tag: 
+    needs: build_and_test
     runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.versioning.outputs.new_tag }}
+    permissions:
+      contents: write
+      packages: write
     steps:
-      - name: Checkout main branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '9.0.x'
-
-      - name: Build and Test .NET
-        run: |
-          dotnet restore
-          dotnet build
-          dotnet test
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Determine new patch tag
         id: versioning
@@ -55,87 +41,66 @@ jobs:
           echo "New patch tag: $new_tag"
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
-      - name: Build & Push Image
-        id: build-image
-        run: |
-          IMAGE_TAG=${{ steps.versioning.outputs.new_tag }}
-          echo "Building Docker image with tag $IMAGE_TAG..."
-          docker build -t ${{ secrets.ECR_REPO }}:$IMAGE_TAG -f Dockerfile .
-          echo "Pushing Docker image with tag $IMAGE_TAG..."
-          docker push ${{ secrets.ECR_REPO }}:$IMAGE_TAG
-          echo "image=${{ secrets.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Use new version
+        run: echo "The new tag is ${{ steps.versioning.outputs.new_tag }}"
 
-      - name: Download and clean existing ECS task definition
-        id: fetch-task
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ vars.TASK_DEFINITION }} \
-            --region ${{ vars.AWS_REGION }} \
-            --query 'taskDefinition' \
-            --output json > taskdef.json
-          jq 'del(
-            .taskDefinitionArn,
-            .revision,
-            .status,
-            .requiresAttributes,
-            .compatibilities,
-            .registeredAt,
-            .registeredBy
-          )' taskdef.json > taskdef-clean.json
+  commit-tag-bump:
+    needs: determine-new-tag
+    uses: ./.github/workflows/commit-tag-bump.yml
+    with:
+      new_tag: ${{ needs.determine-new-tag.outputs.new_tag }}
 
-      - name: Fill in the new image ID in the Amazon ECS task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: taskdef-clean.json
-          container-name: ${{ vars.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
-          environment-variables: |
-            AWS_REGION=${{ vars.AWS_REGION }}
-            QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}
-            REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}
-            ASPNETCORE_ENVIRONMENT=Staging
-            QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}
-            USER_TABLE=${{ vars.USER_TABLE }}
-            MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}
+  build_and_push_image:
+    needs: [commit-tag-bump, determine-new-tag]
+    uses: ./.github/workflows/build-push-image.yml
+    with:
+      image_tag: ${{ needs.determine-new-tag.outputs.new_tag }}
+      environment: production
+    secrets: inherit
 
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          wait-for-service-stability: true
-
-      - name: Cleanup task definition files
-        run: rm -f taskdef.json taskdef-clean.json
-
-      - name: Create Git tag and push to origin
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag ${{ steps.versioning.outputs.new_tag }}
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
-          git push origin ${{ steps.versioning.outputs.new_tag }}
-
-  merge-to-develop:
-    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'hotfix/')
-    needs: build-and-deploy-hotfix
+  export_vars:
+    needs: build_and_push_image
     runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      AWS_REGION: ${{ steps.vars.outputs.AWS_REGION }}
+      QA_SQS_QUEUE_URL: ${{ steps.vars.outputs.QA_SQS_QUEUE_URL }}
+      REMARKETING_SERVICE_QUEUE_URL: ${{ steps.vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
+      QA_PROCESS_TABLE: ${{ steps.vars.outputs.QA_PROCESS_TABLE }}
+      USER_TABLE: ${{ steps.vars.outputs.USER_TABLE }}
+      MAX_NUM_PROCESSES: ${{ steps.vars.outputs.MAX_NUM_PROCESSES }}
+      IMAGE: ${{ steps.vars.outputs.IMAGE }}
+
     steps:
-      - name: Checkout develop branch
-        uses: actions/checkout@v4
-        with:
-          ref: develop
-
-      - name: Configure Git for merge
+      - id: vars
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_OUTPUT
+          echo "QA_SQS_QUEUE_URL=${{ vars.QA_SQS_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "REMARKETING_SERVICE_QUEUE_URL=${{ vars.REMARKETING_SERVICE_QUEUE_URL }}" >> $GITHUB_OUTPUT
+          echo "QA_PROCESS_TABLE=${{ vars.QA_PROCESS_TABLE }}" >> $GITHUB_OUTPUT
+          echo "USER_TABLE=${{ vars.USER_TABLE }}" >> $GITHUB_OUTPUT
+          echo "MAX_NUM_PROCESSES=${{ vars.MAX_NUM_PROCESSES }}" >> $GITHUB_OUTPUT
+          echo "IMAGE=${{ vars.ECR_REPO }}:dev" >> $GITHUB_OUTPUT
+      
+  deploy_to_ecs:
+    needs: [export_vars, build_and_push_image]
+    uses: ./.github/workflows/deploy-ecs.yml
+    with:
+      image: ${{ needs.export_vars.outputs.IMAGE }}
+      environment: development
+      environment_variables: |
+        AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
+        QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
+        REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
+        ASPNETCORE_ENVIRONMENT=Development
+        QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
+        USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
+        MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
+    secrets: inherit
 
-      - name: Merge main into develop
-        run: |
-          echo "Merging main into develop..."
-          git fetch origin main
-          git merge origin/main --no-ff --allow-unrelated-histories -X theirs -m "Merge main into develop after hotfix deployment"
-          git push origin develop
+  propagate-changes:
+    uses: ./.github/workflows/merge-workflow.yml
+    with: 
+      target_branch: develop
+      source_branch: main
+    
