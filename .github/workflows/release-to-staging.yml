@@ -11,13 +11,8 @@ jobs:
     with:
       dotnet_version: '9.0.x'
 
-  check_if_deploy_needed:
-    needs: build_and_test
-    uses: ./.github/workflows/check-if-needs-deploy.yml
-
   build_and_push_image:
-    needs: check_if_deploy_needed
-    if: needs.check_if_deploy_needed.outputs.deploy == 'true'
+    needs: build_and_test
     uses: ./.github/workflows/build-push-image.yml
     with:
       image_tag: release
