@@ -114,7 +114,6 @@ app.MapControllers();
 
 app.MapGet("/", () => "Hello from QA SERVICE!");
 
-
 app.Run();
 
 
