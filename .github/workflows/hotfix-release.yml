@@ -87,12 +87,12 @@ jobs:
     uses: ./.github/workflows/deploy-ecs.yml
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
-      environment: development
+      environment: production
       environment_variables: |
         AWS_REGION=${{ needs.export_vars.outputs.AWS_REGION }}
         QA_SQS_QUEUE_URL=${{ needs.export_vars.outputs.QA_SQS_QUEUE_URL }}
         REMARKETING_SERVICE_QUEUE_URL=${{ needs.export_vars.outputs.REMARKETING_SERVICE_QUEUE_URL }}
-        ASPNETCORE_ENVIRONMENT=Development
+        ASPNETCORE_ENVIRONMENT=Production
         QA_PROCESS_TABLE=${{ needs.export_vars.outputs.QA_PROCESS_TABLE }}
         USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
