@@ -8,7 +8,7 @@ on:
 jobs:
   build_and_test:
     if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'hotfix/')
-    uses: ./.github/workflows/verify-dotnet.yml
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
     with:
       dotnet_version: '9.0.x'
 
@@ -46,13 +46,13 @@ jobs:
 
   commit-tag-bump:
     needs: determine-new-tag
-    uses: ./.github/workflows/commit-tag-bump.yml
+    uses: kikeiz/shared-workflows/.github/workflows/commit-tag-bump.yml@v1
     with:
       new_tag: ${{ needs.determine-new-tag.outputs.new_tag }}
 
   build_and_push_image:
     needs: [commit-tag-bump, determine-new-tag]
-    uses: ./.github/workflows/build-push-image.yml
+    uses: kikeiz/shared-workflows/.github/workflows/build-push-image.yml@v1
     with:
       image_tag: ${{ needs.determine-new-tag.outputs.new_tag }}
       environment: production
@@ -84,7 +84,7 @@ jobs:
       
   deploy_to_ecs:
     needs: [export_vars, build_and_push_image]
-    uses: ./.github/workflows/deploy-ecs.yml
+    uses: kikeiz/shared-workflows/.github/workflows/deploy-ecs.yml@v1
     with:
       image: ${{ needs.export_vars.outputs.IMAGE }}
       environment: production
@@ -101,7 +101,7 @@ jobs:
 
   propagate-changes:
     needs: [deploy_to_ecs]
-    uses: ./.github/workflows/merge-workflow.yml
+    uses: kikeiz/shared-workflows/.github/workflows/merge-workflow.yml@v1
     with: 
       target_branch: develop
       source_branch: main

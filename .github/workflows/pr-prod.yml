@@ -7,10 +7,10 @@ on:
 
 jobs:
   check-branch:
-    uses: ./.github/workflows/validate-branch-name.yml
+    uses: kikeiz/shared-workflows/.github/workflows/validate-branch-name.yml@v1
     with:
       branch_regex: '^(release|hotfix)/[A-Za-z0-9-]+$'
 
   verify:
     needs: check-branch
-    uses: ./.github/workflows/verify-dotnet.yml
+    uses: kikeiz/shared-workflows/.github/workflows/verify-dotnet.yml@v1
