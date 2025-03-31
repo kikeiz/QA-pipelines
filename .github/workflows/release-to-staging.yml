@@ -63,11 +63,3 @@ jobs:
         USER_TABLE=${{ needs.export_vars.outputs.USER_TABLE }}
         MAX_NUM_PROCESSES=${{ needs.export_vars.outputs.MAX_NUM_PROCESSES }}
     secrets: inherit
-
-  delete_ecr_tag:
-    needs: deploy_to_ecs
-    uses: ./.github/workflows/delete-ecr-tag.yml
-    with:
-      environment: staging
-      tag: dev
-    secrets: inherit
